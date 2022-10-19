@@ -1,9 +1,10 @@
+use streakline.load_pot;
 use IO;
 use Math;
 use Random;
 use HDF5;
 use H5Helper;
-use /Code/streakline;
+
 //DIMENSIONLESS VERSION
 //math constants
 const pi = 3.141592653589793;
@@ -53,20 +54,22 @@ proc main(){
   var SD: [0..N] real; //stores std dev at each timestep
   var PS: [1..nbins] real; //whole array gets updated at each timestep
   //hardcode galactic potential parameters
-  var calcpar: [0..5] real;
+  var par: [0..5] real;
+  var calcpar: [0..1] real = [po,rc];
+  /* var calcpar: [0..5] real; */
 
   var chfile = open("bp1.csv",iomode.cw); //create test.csv and open
-  var SDfile = open("SD19.csv",iomode.cw); //create test.csv and open
-  var AMfile = open("AM19.csv",iomode.cw); //create test.csv and open
-  var PSfile = open("PS19.csv",iomode.cw); //create test.csv and open
+  var SDfile = open("SD1.csv",iomode.cw); //create test.csv and open
+  var AMfile = open("AM1.csv",iomode.cw); //create test.csv and open
+  var PSfile = open("PS1.csv",iomode.cw); //create test.csv and open
   var PSWritingChannel = PSfile.writer(); //open writing channel to test.csv
   var SDWritingChannel = SDfile.writer(); //open writing channel to test.csv
   var WritingChannel = chfile.writer(); //open writing channel to test.csv
   var AMWritingChannel = AMfile.writer(); //open writing channel to test.csv
 
-  load_pot(calcpar,pot);
+  load_pot(par,calcpar,pot,Dom,arr);
   //set initial position and velocity of every particle in ring
-  init_ring(pos, vel, AM, SD, PS, calcpar, WritingChannel,AMWritingChannel,PSWritingChannel);
+  /* streakline.init_ring(pos, vel, AM, SD, PS, calcpar, WritingChannel,AMWritingChannel,PSWritingChannel); */
   //dt = dt / period;
   writeln("initialized ring");
   writeln("pos 1 ",pos[1]);
@@ -75,7 +78,7 @@ proc main(){
   /* writeln("calling search force ",search_force((0.5,0.5,0.5))); */
   //writeln("calling search force ",search_force((0.4,0.4,0.4)));
 
-  fwd_orbit_ring(pos, vel, AM, SD, PS, pot, integrator, N, dt, calcpar,WritingChannel,SDWritingChannel,AMWritingChannel,PSWritingChannel);
+  /* streakline.fwd_orbit_ring(pos, vel, AM, SD, PS, pot, integrator, N, dt, calcpar,WritingChannel,SDWritingChannel,AMWritingChannel,PSWritingChannel); */
   WritingChannel.close();
   SDWritingChannel.close();
   AMWritingChannel.close();
