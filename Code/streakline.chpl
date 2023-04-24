@@ -6,8 +6,8 @@ use HDF5;
 use H5Helper;
 
 //math constants
-const pi = 3.141592653589793;
-const Msun = 4 * pi**2; //AU
+const Pi = 3.141592653589793;
+const Msun = 4 * Pi**2; //AU
 const mau = 6.68458e-12; //meters to AU
 const kmkpc = 3.24078e-17;
 const kpcau = 2.063 * (10**8); //kpc to au
@@ -26,7 +26,7 @@ const omegaM0 = 0.31;
 const maxion = 1e-22 * 1.783 * 1e-36;
 
 //setup constants
-config const r0 = toCodeLength(15.0); // radius of ring, in km
+/* config const r0 = toCodeLength(15.0); // radius of ring, in km
 config const integrator = 0;   //set Integrator to LF
 config const N = 100000;//number of timesteps ~ total of 6 Gyr
 var dt = toCodeTime(1000000.0); //set timestep to seconds per Myr
@@ -41,21 +41,24 @@ var pot = 6; //set galactic potential: 5 = analytic soliton,6 = imported potenti
 var period: real = 0.0;
 var k: int = 0; //record how many particles have been released
 var dm = (mcli - mclf)/N; //amount of mass released per timesteps
-var mcl: real = mcli; //current mass of cluster
-config const po = (0.5**4) * 27492.260803351877; //dimensions of analytic soliton
-config const rc = 2.0*0.05359134269304645;
-var Dom = {1..0,1..0,1..0}; //domain of box potential array
-var arr : [Dom] real; //box potential array
-var offset: [0..1] real = [0.2,0.2];
+var mcl: real = mcli; //current mass of cluster */
+/* var Dom = {1..0,1..0,1..0}; //domain of box potential array
+var pot_array : [Dom] real; //box potential array */
+/* var offset: [0..1] real = [0.2,0.2]; */
 var randStream = new RandomStream(real);
 
 
-proc pot_box(calcpar,pot) { //creates acceleration box in km/seconds squared
+proc pot_box(Lbox, dt, calcpar,pot, grid_size,pot_array,box_param) { //creates acceleration box in km/seconds squared
   //var nfwbox = open("../TestingHDF5/mathematica/nfwbox1.csv",iomode.cw); //create test.csv and open
-  var nfwbox = open("nfwbox.csv",iomode.cw); //create test.csv and open
-  var boxchannel = nfwbox.writer(); //open writing channel to test.csv
+  var box = open("box-pot.csv",iomode.cw); //create test.csv and open
+  var boxchannel = box.writer(); //open writing channel to test.csv
 
-  var par: [0..5] real = [417.0, 36.54 * kpckm, 90.0 * pi / 180, 1.0, 1.0 ,1.0];
+  var center_offset: 3*real = (box_param[0],box_param[1],box_param[2]);
+  var grid_size: real = box_param[3];
+  var Lbox: real = box_param[4];
+  //var pot_array = box_param[5];
+
+  /* var par: [0..5] real = [417.0, 36.54 * kpckm, 90.0 * Pi / 180, 1.0, 1.0 ,1.0];
   if pot == 3 { //if using triaxial NFW potential
     //assuming par = [V, rhalo, phi, q_1, q_2, q_z]
     //calcpar = [GM, c1, c2, c3, c4, rhalo]
@@ -73,9 +76,9 @@ proc pot_box(calcpar,pot) { //creates acceleration box in km/seconds squared
     acc = force((r0,0.0,0.0),pot,calcpar);
     writeln("centripetal acceleration in km/sec^2 ",acc[0]," ",acc[1]," ",acc[2]);
     calcpar[5] = par[1] / r0; //Rhalo becomes dimensionless
-    period = 2 * pi * r0 / sqrt(len(acc) * r0); //in seconds; 2pi * r/v
+    period = 2 * Pi * r0 / sqrt(len(acc) * r0); //in seconds; 2Pi * r/v
 
-    //period = 2 * pi * r0 / magVel; //in seconds; 2pi * r/v
+    //period = 2 * Pi * r0 / magVel; //in seconds; 2Pi * r/v
     calcpar[0] = calcpar[0] * (period ** 2)/ (r0 ** 3); //GM becomes dimensionless
     dt = dt / period; //divide dt by period to make it dimensionless
     writeln("period ", period);
@@ -84,33 +87,32 @@ proc pot_box(calcpar,pot) { //creates acceleration box in km/seconds squared
     }
   else if pot == 0 {
     calcpar[0] = G * 1000000000.0 * (1.989e30); //GM in km^3 / sec^2
-  }
-  //create box
-  //var dr: real = (40.0 * kpckm)/128.0; //in kpc : range / nsteps
-  var dr: real = (40.0 / 15.0)/128.0; //unitless: range/nsteps
+  } */
+  var dr: real = Lbox / grid_size; //codeUnits per gridpoint
   var x, y, z: real = 0.0;
+  /* var x, y, z: real = 0.0; */
   var acc: 3*real;
-  for i in -64..63 {//x
-    x = i * dr; //position in km
-    for j in -64..63 {//y
-      //y = i * dr; //in km
+  /* for i in -63..63 {//x */
+  for i in -63..63 {//x
+    x = i * dr; //position in codeunits
+    /* for j in -64..63 {//y */
+    for j in -63..63 {//y
       y = j * dr;
-      for k in -64..63 {//z
-        z = k * dr; //in km
-        acc = force((x,y,z),pot,calcpar);
+      /* for k in -64..63 {//z */
+      for k in -63..63 {//z
+        z = k * dr; //in codeunits
+        /* acc = force((x,y,z),pot,calcpar,box_param); */
+        acc = force((x,y,z),pot,calcpar,pot_array,box_param);
         boxchannel.write(len(acc)," ");
       }
       boxchannel.write("\n");
     }
   }
   boxchannel.close();
-  nfwbox.close();
-
+  box.close();
 }
 
-
-proc load_pot(calcpar,pot) { //creates acceleration box in km/seconds squared
-  var par: [0..5] real = [417.0, 36.54 * kpckm, 90.0 * pi / 180, 1.0, 1.0 ,1.0];
+proc load_anly_pot(r0,par,calcpar,pot,ref dt) { //creates acceleration box in km/seconds squared
   if pot == 3 {
     //triaxial NFW potential
     //assuming par = [V (km/sec), rhalo (km), phi (radians), q_1, q_2, q_z]
@@ -126,28 +128,36 @@ proc load_pot(calcpar,pot) { //creates acceleration box in km/seconds squared
     calcpar[4] = 1/(par[5]*par[5]);
     calcpar[5] = par[1]; //rhalo in km
 
+    /* this is no longer needed if using chpl ultra units?
     //convert calcpar to dimensionless units
     var acc: 3*real;
     //acc = force(r0 * pos[j],pot,calcpar); //convert pos to dimensions and get force
     acc = force((r0,0.0,0.0),pot,calcpar); //obtain force at r0 in units
     calcpar[5] = par[1] / r0; //Rhalo becomes dimensionless
-    period = 2 * pi * r0 / sqrt(len(acc) * r0); //in seconds; 2pi * r/v
+    period = 2 * Pi * r0 / sqrt(len(acc) * r0); //in seconds; 2Pi * r/v
     calcpar[0] = calcpar[0] * (period ** 2)/ (r0 ** 3); //GM becomes dimensionless
-    dt = dt / period; //divide dt by period to make it dimensionless
+    dt = dt / period; //divide dt by period to make it dimensionless */
 
     }
   else if pot == 0 {
     //using point potential (Newton)
     calcpar[0] = G_code * 1000000000.0 * (1.989e30); //GM in km^3 / sec^2
   }
-  else if pot == 6 {
-    //importing potential in arr
-    var ff = openH5File("phi_000000.h5");
-    readRealArray(ff,'phi',Dom,arr);
+  /* else if pot == 5 {
+    calcpar[0] = par[0];
+    calcpar[1] = par[1];
+  } */
+}
+proc load_imp_pot(pot,ref Dom, ref pot_array, pot_file) {
+  //loads the specified file into the specified array
+  if pot == 6 {
+    //importing potential in pot_array
+    readRealArray(pot_file,'phi',Dom,pot_array);
   }
 }
 
-proc force(pos,pot,calcpar){
+proc force(pos,pot,calcpar,pot_array,box_param){
+//proc force(pos,pot,calcpar,box_param){
   var acc: 3*real;
   var r: real;
   if pot == 0 { //if using point mass potential
@@ -168,16 +178,25 @@ proc force(pos,pot,calcpar){
     acc[2]=aux*(2*calcpar[4]*pos[2]);
     //writeln("acc magnitude ", len(acc));
   }
-  else if pot == 5 || pot == 6 {
-    r = len(pos);
+  else if pot == 5 { //soliton approximation
+    var po: real = calcpar[0];
+    var rc: real = calcpar[1];
+
+    var center_offset: 3*real = (box_param[0],box_param[1],box_param[2]);
+
+    var shifted_pos: 3*real;
+    shifted_pos[0] = pos[0] + center_offset[0];
+    shifted_pos[1] = pos[1] + center_offset[1];
+    shifted_pos[2] = pos[2] + center_offset[2];
+    r = len(shifted_pos);
     var height: real = 0.0;
-    var dr: real = 0.1;
+    var dr: real = 0.001; //changed from 0.1 which wasn't working
     var mass: real = 0.0;
     var bound: int = (r/dr): int;
     var a: real = 0.0;
     for i in 0..bound {
       const r1 = i * dr;
-      height = po * 4 * pi * (r1**2) / (1 + 0.091 * (i * dr/rc)**2)**8; //
+      height = po * 4 * Pi * (r1**2) / (1 + 0.091 * (i * dr/rc)**2)**8; //
       //height = po / (1 + 0.091 * (i * dr/rc)**2)**8; //
       mass = mass + (height * dr);
       //a += -G * height * dr / (i*dr)**2;
@@ -186,24 +205,104 @@ proc force(pos,pot,calcpar){
     acc = (- G_code * mass / r**2) * (pos/r);
     //acc = a * (pos/r);
   }
+  else if pot == 6 { //search hdf5 box
+    var center_offset: 3*real = (box_param[0],box_param[1],box_param[2]);
+    var grid_size: real = box_param[3];
+    var Lbox: real = box_param[4];
+    var dr: real = grid_size / Lbox;
+    //HDF5 box goes from 0 to 127
+    var x_pos: int = floor(abs(-Lbox/2.0 + center_offset[0] - pos[0]) * dr): int;
+    var y_pos: int = floor(abs(-Lbox/2.0 + center_offset[1] - pos[1]) * dr): int;
+    var z_pos: int = floor(abs(-Lbox/2.0 + center_offset[2] - pos[2]) * dr): int;
+    //writeln("x pos ",abs(-1.0 - pos[0]) * dr-0.25," y pos ",abs(-1.0 - pos[1]) * dr-0.25," z pos ",abs(-1.0 - pos[2]) * dr-0.25);
+    /* writeln("x pos ",x_pos," y pos ",y_pos," z pos ",z_pos); */
+    //var a: [0..2] real;
+    var a: real;
+    a = pot_array[x_pos,y_pos,z_pos];
+    /* writeln("a ",a); */
+    //take the derivative of a
+    var h: real = 2.0 * (Lbox / grid_size);
+
+    //derivative blows up at edges, check for edge
+    if x_pos > 126 {
+      x_pos = 126;
+    }
+    if y_pos > 126 {
+      y_pos = 126;
+    }
+    if z_pos > 126 {
+      z_pos = 126;
+    }
+
+    acc(0) = -1*(pot_array[x_pos + 1, y_pos,z_pos] - pot_array[x_pos-1,y_pos,z_pos])/ h;
+    acc(1) = -1*(pot_array[x_pos, y_pos + 1,z_pos] - pot_array[x_pos,y_pos-1,z_pos])/ h;
+    acc(2) = -1*(pot_array[x_pos, y_pos,z_pos + 1] - pot_array[x_pos,y_pos,z_pos-1])/ h;
+    /* writeln("f(x+1) ",pot_array[x_pos+1, y_pos,z_pos]);
+    writeln(x_pos," ",y_pos," ",z_pos,"\n"); */
+
+    /* writeln("f(x-1) ",pot_array[x_pos-1, y_pos,z_pos]); */
+    /* writeln("f(x+1) - f(x-1) ",(pot_array[x_pos+1, y_pos,z_pos] - pot_array[x_pos-1, y_pos,z_pos])/(2*0.015625)); */
+
+
+    //acc = acc * pos /len_pos;
+
+    /* acc(0) = a[0];
+    acc(1) = a[1];
+    acc(2) = a[2]; */
+  }
+  else { //search csv box
+    var center_offset: 3*real = (box_param[0],box_param[1],box_param[2]);
+    var grid_size: real = box_param[3];
+    var Lbox: real = box_param[4];
+    //searches up potential from box and converts to dimensionless units
+    var box = open("box-pot.csv",iomode.r); // open box
+    var boxchannel = box.reader(); //open reading channel
+    var dr: real = grid_size / Lbox; //gridpts per codeunit
+    //writeln(dr);
+    var tmp: string;
+    var tmp2: string;
+    //determine column number from z position
+    var col: int = floor(abs(-Lbox/2.0 + center_offset[2] - pos[2]) * dr): int;
+    var row: real = floor(abs(-Lbox/2.0 + center_offset[0] - pos[0]) * dr);
+    //determine row number from x and y positions
+    row = 128 * row; //row = 10 * row;
+    row += (floor(abs(-Lbox/2.0 + center_offset[1] - pos[1]) * dr));
+    var frow: int = row: int; //final row number
+    //writeln(frow);
+    //writeln(col);
+    //writeln(pos);
+    for i in 1..frow{
+      boxchannel.readln(tmp);
+    }
+    for i in 0..col{
+      /* boxchannel.read(tmp2); */
+      boxchannel.read(tmp);
+    }
+    /* writeln(tmp2); */
+    /* var a: real = tmp2: real; */
+    var a: real = tmp: real;
+    //acc = -(pos/len(pos)) * a * (period**2)/r0; //acc made dimensionless
+    acc = -(pos/len(pos)) * a;
+    //writeln(acc);
+  }
   return acc;
 }
 
 //initialize particles in a ring
-proc init_ring (pos, vel, AM, SD, PS, calcpar,WritingChannel,AMWritingChannel,PSWritingChannel) {
+proc init_ring (pos, vel, AM, SD, PS, calcpar,WritingChannel,AMWritingChannel,PSWritingChannel, pot, Ne, r0,nbins,pot_array,box_param,scale_magVel) {
   //assign counterclockwise from rightmost point on x axis.
   var posAngle, velAngle, magVel: real;
   var acc: 3*real;
-  /* acc = force((r0,0.0,0.0),pot,calcpar); */
+  acc = force((r0,0.0,0.0),pot,calcpar,pot_array,box_param);
   //acc = force((1.0,0.0,0.0),pot,calcpar);
-  acc = search_force((r0,0.0,0.0));
+  /* acc = search_force((r0,0.0,0.0)); */
   //magVel = sqrt(len(acc) * r0) * period / r0;
-  magVel = sqrt(len(acc) * r0); //already dimensionless
+  magVel = scale_magVel*sqrt(len(acc) * r0);
   //magVel = sqrt(len(acc));
 
   //var velAngle: real;
   for j in 1..Ne { //Ne=number of desired particles
-    posAngle = j * 2.0 * pi / Ne; //cycle thru angles in a circle
+    posAngle = j * 2.0 * Pi / Ne; //cycle thru angles in a circle
 
     pos[j][0] = r0 * cos(posAngle);
     pos[j][1] = r0 * sin(posAngle);
@@ -212,7 +311,7 @@ proc init_ring (pos, vel, AM, SD, PS, calcpar,WritingChannel,AMWritingChannel,PS
     pos[j][1] = sin(posAngle);
     pos[j][2] = 0.0; */
 
-    velAngle = (pi / 2.0) - posAngle; //angles are complementary
+    velAngle = (Pi / 2.0) - posAngle; //angles are complementary
 
     vel[j][0] = magVel * cos(velAngle); //dimensionless
     vel[j][1] = -1.0 * magVel * sin(velAngle);
@@ -226,10 +325,10 @@ proc init_ring (pos, vel, AM, SD, PS, calcpar,WritingChannel,AMWritingChannel,PS
     WritingChannel.write(vel[j][0],",",vel[j][1],",",vel[j][2],"\n");
     AMWritingChannel.write(AM[j],",");
   }
-  pow_spec(pos,vel,PS,PSWritingChannel);
+  pow_spec(pos,vel,PS,PSWritingChannel,nbins,Ne);
   AMWritingChannel.write("\n");
 
-  //iterate through 2pi radians divided by 10 (Ne) particles.
+  //iterate through 2Pi radians divided by 10 (Ne) particles.
   //for each, multiply r0 by sin to get y, r0 by cosine to get x
   //calculate magnitude of centripetal velocity vector for each particles
   //angle velocity vector makes with axis is 90 - theta.
@@ -237,7 +336,7 @@ proc init_ring (pos, vel, AM, SD, PS, calcpar,WritingChannel,AMWritingChannel,PS
 }
 
 //orbit procedure: advances cluster in position and velocity using integrator of choice by N timesteps
-proc fwd_orbit (pos, vel, pot, integrator, N, dt, pos_lead, pos_trail, vel_lead, vel_trail, calcpar) {
+proc fwd_orbit (pos, vel, pot, integrator, N, dt, pos_lead, pos_trail, vel_lead, vel_trail, calcpar,k, M, myReadingChannelv,myReadingChannelp, offsetOption, myWritingChannel) {
     if integrator == 0  { //if leapfrog
       //move velocity forward half a timestep
       halfstep(pos[0],vel[0],pot,dt,1.0, calcpar);
@@ -294,8 +393,8 @@ proc fwd_orbit (pos, vel, pot, integrator, N, dt, pos_lead, pos_trail, vel_lead,
       if offsetOption == 1 {
         myReadingChannelv.close();
         myReadingChannelp.close();
-        cfile1.close();
-        cfile2.close();
+        /* cfile1.close();
+        cfile2.close(); */
       }
 
       //myWritingChannel.write("\n");
@@ -314,12 +413,12 @@ proc fwd_orbit (pos, vel, pot, integrator, N, dt, pos_lead, pos_trail, vel_lead,
 
 
 //moves each particle in ring forward
-proc fwd_orbit_ring (pos, vel, AM, SD, PS, pot, integrator, N, dt, calcpar,WritingChannel, SDWritingChannel,AMWritingChannel,PSWritingChannel) {
+proc fwd_orbit_ring (pos, vel, AM, SD, PS, pot, integrator, N, dt, calcpar,WritingChannel, SDWritingChannel,AMWritingChannel,PSWritingChannel, Ne, r0, nbins,pot_array, box_param) {
     if integrator == 0  { //if leapfrog
       //move velocity of all particles a halfstep forward
 
       for j in 1..Ne {
-        halfstep(pos[j],vel[j],pot,dt,1.0, calcpar);
+        halfstep(pos[j],vel[j],pot,dt,1.0, calcpar,pot_array,box_param);
         AM[j] = angMom(pos[j],vel[j]);
         //writeln("vel after halfstep ",vel[j]);
         //writeln("pos after halfstep ",pos[j]);
@@ -333,7 +432,7 @@ proc fwd_orbit_ring (pos, vel, AM, SD, PS, pot, integrator, N, dt, calcpar,Writi
       for i in 0..N { //for each subsequent timestep
         //move velocity of all particles a fullstep forwards
         for j in 1..Ne {
-          step(pos[j], vel[j], dt, calcpar,WritingChannel);
+          step(pos[j], vel[j], dt, calcpar,WritingChannel, pot,pot_array,box_param);
           //writeln("streamstep complete");
           AM[j] = angMom(pos[j],vel[j]);
           //writing position and velocity of to file (one particle per line)
@@ -343,8 +442,8 @@ proc fwd_orbit_ring (pos, vel, AM, SD, PS, pot, integrator, N, dt, calcpar,Writi
           AMWritingChannel.write(AM[j],",");
           }
         AMWritingChannel.write("\n");
-        SD[i] = stdev(AM);
-        pow_spec(pos,vel,PS,PSWritingChannel);
+        SD[i] = stdev(AM,Ne);
+        pow_spec(pos,vel,PS,PSWritingChannel,nbins,Ne);
         //writeln("fullstep complete");
         /* //print snapshot at 5000th timestep
         if i == N-1000 {
@@ -356,10 +455,12 @@ proc fwd_orbit_ring (pos, vel, AM, SD, PS, pot, integrator, N, dt, calcpar,Writi
       }
       //for final timestep, move everything back
       for j in 1..Ne {
-        halfstep(pos[j],vel[j],pot,dt,-1.0, calcpar);
+        halfstep(pos[j],vel[j],pot,dt,-1.0, calcpar,pot_array,box_param);
       }
       for i in 0..N {
-        SDWritingChannel.write(i,",",SD[i] * (r0/period),"\n");
+        //initially Sd[i] is multiplied by r0/period?
+        //SDWritingChannel.write(i,",",SD[i] * (r0/period),"\n");
+        SDWritingChannel.write(i,",",SD[i],"\n");
       }
   }
 }
@@ -391,7 +492,7 @@ proc back_orbit (pos, vel, pot, integrator, N, dt, pos_lead, pos_trail, vel_lead
 
 
 //procedure to advance particles by a timestep. only subject to force from central pot
-proc step(ref pos, ref vel, dt, calcpar,WritingChannel) {
+proc step(ref pos, ref vel, dt, calcpar,WritingChannel,pot,pot_array,box_param) {
 
   //update position of jth particle
   pos += dt * vel;
@@ -399,7 +500,7 @@ proc step(ref pos, ref vel, dt, calcpar,WritingChannel) {
   //search acceleration
   var a: 3*real;
   //writeln("searching for force");
-  a = search_force(pos); //returns dimensionless acc
+  a = force(pos,pot,calcpar,pot_array,box_param); //returns dimensionless acc
   //writeln("found force");
 
   //writeln(a);
@@ -420,7 +521,7 @@ proc step(ref pos, ref vel, dt, calcpar,WritingChannel) {
 }
 
 //procedure to advance ejected particles by a timestep
-proc stream_step(ref pos, ref vel, pos_cl, dt, calcpar) {
+proc stream_step(ref pos, ref vel, pos_cl, dt, calcpar, pot,Rcl) {
   //update position of jth particle
   pos += dt * vel;
   //calculate acceleration from Msun
@@ -435,7 +536,9 @@ proc stream_step(ref pos, ref vel, pos_cl, dt, calcpar) {
   vel += dt * a;
 }
 
-proc search_force(pos){
+//SHOULD NO LONGER BE IN USE; CONSOLIDATED WITH FORCE
+proc search_force(pos, pot, calcpar,pot_array){
+
   //search acceleration
   var acc: 3*real;
   if pot == 6 {
@@ -447,7 +550,7 @@ proc search_force(pos){
     /* writeln("x pos ",x_pos," y pos ",y_pos," z pos ",z_pos); */
     //var a: [0..2] real;
     var a: real;
-    a = arr[x_pos,y_pos,z_pos];
+    a = calcpar[x_pos,y_pos,z_pos];
     /* writeln("a ",a); */
     //take the derivative of a
     var h: real = 2.0 * (2.0 / 128);
@@ -463,12 +566,12 @@ proc search_force(pos){
       z_pos = 126;
     }
 
-    acc(0) = -1*(arr[x_pos + 1, y_pos,z_pos] - arr[x_pos-1,y_pos,z_pos])/ h;
-    acc(1) = -1*(arr[x_pos, y_pos + 1,z_pos] - arr[x_pos,y_pos-1,z_pos])/ h;
-    acc(2) = -1*(arr[x_pos, y_pos,z_pos + 1] - arr[x_pos,y_pos,z_pos-1])/ h;
-    /* writeln("f(x+1) ",arr[x_pos+1, y_pos,z_pos]);
-    writeln("f(x-1) ",arr[x_pos-1, y_pos,z_pos]);
-    writeln("f(x+1) - f(x-1) ",(arr[x_pos+1, y_pos,z_pos] - arr[x_pos-1, y_pos,z_pos])/(2*0.015625)); */
+    acc(0) = -1*(pot_array[x_pos + 1, y_pos,z_pos] - pot_array[x_pos-1,y_pos,z_pos])/ h;
+    acc(1) = -1*(pot_array[x_pos, y_pos + 1,z_pos] - pot_array[x_pos,y_pos-1,z_pos])/ h;
+    acc(2) = -1*(pot_array[x_pos, y_pos,z_pos + 1] - pot_array[x_pos,y_pos,z_pos-1])/ h;
+    /* writeln("f(x+1) ",pot_array[x_pos+1, y_pos,z_pos]);
+    writeln("f(x-1) ",pot_array[x_pos-1, y_pos,z_pos]);
+    writeln("f(x+1) - f(x-1) ",(pot_array[x_pos+1, y_pos,z_pos] - pot_array[x_pos-1, y_pos,z_pos])/(2*0.015625)); */
 
 
     //acc = acc * pos /len_pos;
@@ -511,10 +614,10 @@ proc search_force(pos){
 
 }
 //shifts velocity by a halfstep in direction of sign
-proc halfstep(p, ref v, pot, dt, sign, calcpar) {
+proc halfstep(p, ref v, pot, dt, sign, calcpar,pot_array,box_param) {
   var signed_dt: real = sign * dt;
   var a: 3*real;
-  a = search_force(p);
+  a = force(p,pot,calcpar,pot_array,box_param);
   //writeln("dot force and vel ",a[0]*v[0] + a[1]*v[1] + a[2]*v[2]);
 
   //writeln("signed dt ",signed_dt," calc from halfstep: ",0.5 * signed_dt * a);
@@ -535,8 +638,8 @@ proc cross((x1,y1,z1),(x2,y2,z2)) {
   cross_product[2] = (x1 * y2) - (y1 * x2);
   return cross_product;
 }
-proc stdev(AM){
-  var mean, SD: real = 0.0;
+proc stdev(AM, Ne){
+    var mean, SD: real = 0.0;
   for j in 1..Ne { //iterate over all stream particles
     mean += AM[j];
   }
@@ -552,7 +655,7 @@ proc stdev(AM){
 proc len((x,y,z)) {
   return sqrt(x**2 + y**2 + z**2);
 }
-proc pow_spec (pos,vel, PS,PSWritingChannel) {//gets computed at each timstep
+proc pow_spec (pos,vel, PS,PSWritingChannel , nbins, Ne) {//gets computed at each timstep
   //keep track of index of particle
   var j: int = 1;
   var avg: real = Ne / nbins;
@@ -560,8 +663,8 @@ proc pow_spec (pos,vel, PS,PSWritingChannel) {//gets computed at each timstep
   var low_bound, up_bound, posAngle: real = 0.0;
   posAngle = acos( pos[j][0] / len(pos[j]) );
   for i in 1..nbins{
-    low_bound = (i - 1.0) * (2.0 * pi / nbins);
-    up_bound = i * (2.0 * pi / nbins);
+    low_bound = (i - 1.0) * (2.0 * Pi / nbins);
+    up_bound = i * (2.0 * Pi / nbins);
     //writeln("low: ",low_bound);
     //writeln("high ", up_bound);
     //calculate angle of position of current particle
@@ -575,7 +678,7 @@ proc pow_spec (pos,vel, PS,PSWritingChannel) {//gets computed at each timstep
       j += 1; //move on to next particle
       posAngle = acos( pos[j][0] / len(pos[j]) ); //update angle
       if pos[j][1] < 0{  //if y is neg, aka in lower quad,
-        posAngle = posAngle + 2 * (pi - posAngle);
+        posAngle = posAngle + 2 * (Pi - posAngle);
         }
     }
     //PSWritingChannel.write(i,",",PS[i] / avg,",");
@@ -607,14 +710,14 @@ proc norm_rand (ref r1, ref r2, randStream) {
   randStream.fillRandom(arr1);
   randStream.fillRandom(arr2);
 
-  r1[0] = sqrt(-2 * log(arr1[0])) * cos(2*pi*arr1[1]);
-  r1[1] = sqrt(-2 * log(arr1[0])) * sin(2*pi*arr1[1]);
+  r1[0] = sqrt(-2 * log(arr1[0])) * cos(2*Pi*arr1[1]);
+  r1[1] = sqrt(-2 * log(arr1[0])) * sin(2*Pi*arr1[1]);
 
-  r1[2] = sqrt(-2 * log(arr1[2])) * cos(2*pi*arr2[0]);
-  r2[0] = sqrt(-2 * log(arr1[2])) * sin(2*pi*arr2[0]);
+  r1[2] = sqrt(-2 * log(arr1[2])) * cos(2*Pi*arr2[0]);
+  r2[0] = sqrt(-2 * log(arr1[2])) * sin(2*Pi*arr2[0]);
 
-  r2[1] = sqrt(-2 * log(arr2[1])) * cos(2*pi*arr2[2]);
-  r2[2] = sqrt(-2 * log(arr2[1])) * sin(2*pi*arr2[2]);
+  r2[1] = sqrt(-2 * log(arr2[1])) * cos(2*Pi*arr2[2]);
+  r2[2] = sqrt(-2 * log(arr2[1])) * sin(2*Pi*arr2[2]);
 }
 
 proc readTuple(ReadingChannel, ref r){
@@ -628,7 +731,7 @@ proc readTuple(ReadingChannel, ref r){
   }
 }
 
-proc loadOffsets(ref dvl, ref dvt, ref r1, ref r2, ReadingChannelv, ReadingChannelp, randStream) {
+proc loadOffsets(ref dvl, ref dvt, ref r1, ref r2, ReadingChannelv, ReadingChannelp, randStream, offsetOption, offset,WritingChannel) {
   /*central function controlling offsets.
   offsetOption 0 = no radial offset
   offsetOption 1 = use C radial offsets to replicate results in chpl
@@ -661,12 +764,12 @@ proc loadOffsets(ref dvl, ref dvt, ref r1, ref r2, ReadingChannelv, ReadingChann
 
 
 proc toSeconds (l) { //not in use
-  var a: real = ((8 * pi)/(3* H0**2 *omegaM0))**0.5;
+  var a: real = ((8 * Pi)/(3* H0**2 *omegaM0))**0.5;
   return a / l**2;
 }
 
 proc toMeters (l) { //not in use
-  var a: real = (8 * pi * (hbar**2))/(3 * (maxion**2) * (H0**2) * omegaM0);
+  var a: real = (8 * Pi * (hbar**2))/(3 * (maxion**2) * (H0**2) * omegaM0);
   return (a**0.25) / l;
 }
 
@@ -680,7 +783,7 @@ proc toCodeMass(kg) {
   return kg/4.42837e36;
 }
 
-proc force_plummer(r, Rcl) {
+proc force_plummer(r, Rcl, mcl) {
   // dist from cluster to particle, cluster radius
   var dist = len(r);
   var raux: real = sqrt(dist**2 + Rcl**2);
@@ -690,7 +793,7 @@ proc force_plummer(r, Rcl) {
   return acc;
 }
 
-proc tidal_radius(pos_cl,vel_cl,omega,calcpar) {
+proc tidal_radius(pos_cl,vel_cl,omega,calcpar, pot, mcl) {
   //writeln("pos cl ",pos_cl," vel cl ",vel_cl," omega ",omega);
   var un_vec: 3*real = pos_cl/len(pos_cl);
   var delta = 0.02 * kpcau * un_vec;
@@ -757,7 +860,7 @@ proc eject(pos_cl, vel_cl, ref pos_lead, ref vel_lead, ref pos_trail, ref vel_tr
   //writeln("pos_trail at ejection ",pos_trail);
   //writeln("vel_trail at ejection", vel_trail);
 }
-
+/*
 proc main_ring(){
 
   //create array of tuples to hold position and velocity and velocity at each timestep
@@ -767,6 +870,7 @@ proc main_ring(){
   var SD: [0..N] real; //stores std dev at each timestep
   var PS: [1..nbins] real; //whole array gets updated at each timestep
   //hardcode galactic potential parameters
+  var par: [0..5] real = [417.0, 36.54 * kpckm, 90.0 * Pi / 180, 1.0, 1.0 ,1.0];
   var calcpar: [0..5] real;
 
   var chfile = open("mathematica/bp19.csv",iomode.cw); //create test.csv and open
@@ -778,7 +882,7 @@ proc main_ring(){
   var WritingChannel = chfile.writer(); //open writing channel to test.csv
   var AMWritingChannel = AMfile.writer(); //open writing channel to test.csv
 
-  load_pot(calcpar,pot);
+  load_pot(par,calcpar,pot,Dom,arr);
   //set initial position and velocity of every particle in ring
   init_ring(pos, vel, AM, SD, PS, calcpar, WritingChannel,AMWritingChannel,PSWritingChannel);
   //dt = dt / period;
@@ -786,7 +890,7 @@ proc main_ring(){
   writeln("pos 1 ",pos[1]);
   writeln("vel 1", vel[1]);
   //
-  /* writeln("calling search force ",search_force((0.5,0.5,0.5))); */
+   writeln("calling search force ",search_force((0.5,0.5,0.5)));
   //writeln("calling search force ",search_force((0.4,0.4,0.4)));
 
   fwd_orbit(pos, vel, AM, SD, PS, pot, integrator, N, dt, calcpar,WritingChannel,SDWritingChannel,AMWritingChannel,PSWritingChannel);
@@ -811,8 +915,9 @@ proc main_stream () {
   var vel_trail: [0..Ne] 3*real;
 
   //hardcode galactic potential parameters
+  var par: [0..5] real = [417.0, 36.54 * kpckm, 90.0 * Pi / 180, 1.0, 1.0 ,1.0];
   var calcpar: [0..5] real;
-  load_pot(calcpar,pot);
+  load_pot(par,calcpar,pot,Dom,arr);
 
 
   //hardcode initial position and velocity of cluster
@@ -831,3 +936,4 @@ proc main_stream () {
   myWritingChannel.close();
   chfile.close();
 }
+*/

@@ -38,6 +38,9 @@ var pot = 6; //set galactic potential to that of imported soliton
 config const integrator = 0;   //set Integrator to LF
 config const N = 100000;//6000 set number of timesteps to equal total of 6 Gyr
 var dt = toCodeTime(1000000.0); //set timestep to seconds per Myr
+config const grid_size: real = 128.0;
+/* config const grid_size: real = 127.0; */
+config const Lbox: real = 2.0;
 
 
 
@@ -57,10 +60,10 @@ proc main(){
   var par: [0..5] real;
   var calcpar: [0..5] real;
 
-  var chfile = open("bp1.csv",iomode.cw); //contains pos and vel data
-  var SDfile = open("SD1.csv",iomode.cw); //contains std dev data
-  var AMfile = open("AM1.csv",iomode.cw); //contains ang mom data
-  var PSfile = open("PS1.csv",iomode.cw); //contains power spectra data
+  var chfile = open("pos-vel.csv",iomode.cw); //contains pos and vel data
+  var SDfile = open("standard-dev.csv",iomode.cw); //contains std dev data
+  var AMfile = open("ang-mom.csv",iomode.cw); //contains ang mom data
+  var PSfile = open("pow-spec.csv",iomode.cw); //contains power spectra data
   var PSWritingChannel = PSfile.writer(); //open writing channel to test.csv
   var SDWritingChannel = SDfile.writer(); //open writing channel to test.csv
   var WritingChannel = chfile.writer(); //open writing channel to test.csv
@@ -68,9 +71,16 @@ proc main(){
 
   var pot_file = openH5File("../../../Code/phi_000000.h5");
   load_imp_pot(pot,Dom,pot_array,pot_file);
-  var center_offset: 3*real = (0.0078125,-0.00585938,0.0);
+  var dr: real = Lbox / grid_size; //codeunits per gridpoint
+  /* var center_offset: 3*real = (0.0078125,-0.00585938,0.0); */
+  var center_offset: 3*real = (-dr/2.0,-dr/2.0,-dr/2.0);
+  /* var center_offset: 3*real = (0.0,0.0,0.0); */
+
+  var scale_magVel: real = 1.0;
+  var box_param: [0..4] real = [center_offset[0],center_offset[1],center_offset[2],grid_size,Lbox];
+
   //set initial position and velocity of every particle in ring
-  init_ring(pos, vel, AM, SD, PS, calcpar, WritingChannel,AMWritingChannel,PSWritingChannel,pot, Ne, r0,nbins, pot_array,center_offset);
+  init_ring(pos, vel, AM, SD, PS, calcpar,WritingChannel,AMWritingChannel,PSWritingChannel, pot, Ne, r0,nbins,pot_array,box_param,scale_magVel);
   //dt = dt / period;
   writeln("initialized ring");
   writeln("pos 1 ",pos[1]);
@@ -78,7 +88,7 @@ proc main(){
   //
   /* writeln("calling search force ",search_force((0.5,0.5,0.5))); */
   //writeln("calling search force ",search_force((0.4,0.4,0.4)));
-  fwd_orbit_ring(pos, vel, AM, SD, PS, pot, integrator, N, dt, calcpar,WritingChannel,SDWritingChannel,AMWritingChannel,PSWritingChannel, Ne, r0, nbins,pot_array,center_offset);
+  fwd_orbit_ring(pos, vel, AM, SD, PS, pot, integrator, N, dt, calcpar,WritingChannel, SDWritingChannel,AMWritingChannel,PSWritingChannel, Ne, r0, nbins,pot_array, box_param);
   WritingChannel.close();
   SDWritingChannel.close();
   AMWritingChannel.close();
